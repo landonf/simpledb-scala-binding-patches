@@ -24,12 +24,17 @@ package org.sublime.amazon.simpleDB {
             }        
         }
     
-        object ISO8610Date extends Conversion[Date] {
+        /**
+         * Conversion for dates using a lexicographically comparable format specified by ISO8601.
+         * @see http://en.wikipedia.org/wiki/ISO_8601
+         * @see http://www.iso.org/iso/catalogue_detail?csnumber=40874
+         */
+        object ISO8601Date extends Conversion[Date] {
         	import java.text.SimpleDateFormat
         	import java.util.TimeZone
 
         	def format = {
-        	    val f = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ")
+        	    val f = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'")
         	    f.setTimeZone(TimeZone.getTimeZone("UTC"))
         	    f
     	    }
