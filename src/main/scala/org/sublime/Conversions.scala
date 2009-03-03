@@ -69,9 +69,4 @@ package org.sublime
             def unapply (in:String) :Option[String] = None
         }
     }
-
-    trait Conversion [T] {
-        def apply (t:T) :String
-        def unapply (s:String) :Option[T]
-    }
 }
