@@ -1,7 +1,13 @@
-package org.sublime.amazon.simpleDB {
-    import java.util.Date
-        
+import java.util.Date
+
+package org.sublime 
+{
     object Conversions {
+        
+        trait Conversion [T] {
+            def apply (t:T) :String
+            def unapply (s:String) :Option[T]
+        }        
         
         object PassThrough extends Conversion[String] {
             def apply (value:String) = value

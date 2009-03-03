@@ -1,13 +1,10 @@
 package org.sublime.amazon.simpleDB {
+
+    import api.{Domain, ItemSnapshot, SimpleAPI}
+    import org.sublime.Attributes._
+    import Quoting._
     
     object Query {        
-
-        def quote (value:String) = "'" + ((value map { c => c match {
-            case '"' => "\"\""
-            case '`' => "``"
-            case '\'' => "''"
-            case a:Char => a 
-        }}) mkString) + "'"        
         
         abstract case class Expression {
             //def query :String
@@ -87,25 +84,15 @@ package org.sublime.amazon.simpleDB {
             }
         }
         
-        case class NamedAttribute (name:String)
+        implicit def toQueryAttribute[T] (a:Attribute[T]) :QueryAttribute [T] = 
+            new QueryAttribute(a)
 
-        case class Attribute [T] (override val name:String, conversion:Conversion[T]) extends
-            NamedAttribute(name)
-        {   
-            def apply (value:T) = (name -> conversion(value))
-            
-            import scala.collection.Map
-            def apply (result:Map[String,Set[String]]) : List[T] = 
-                if (! result.contains(name)) List[T]()
-                else (result(name) flatMap ( raw => raw match {
-                    case conversion(value) => List[T](value)
-                    case _ => List[T]()
-                } )).toList
+        class QueryAttribute [T] (a:Attribute[T])
+        {           
+            private def comparison (op:String, value:T) = Comparison(op, a, value)
         
-            private def comparison (op:String, value:T) = Comparison(op, this, value)
-        
-            def eq (value:T) = comparison("=", value)
-            def ne (value:T) = comparison("!=", value)
+            def is (value:T) = comparison("=", value)
+            def is_not (value:T) = comparison("!=", value)
             def > (value:T) = comparison(">", value)
             def < (value:T) = comparison("<", value)
             def >= (value:T) = comparison(">=", value)
@@ -114,7 +101,16 @@ package org.sublime.amazon.simpleDB {
             def does_not_start_with (value:T) = comparison("does_not_start_with", value)
         }
         
-        def attribute (name:String) = Attribute(name, Conversions.PassThrough)
-        def attribute [T] (name:String, conversion:Conversion[T]) = Attribute[T](name, conversion)
+        implicit def toQueryableDomain (d:Domain) :QueryableDomain = new QueryableDomain(d)
+        
+        class QueryableDomain (d:Domain) {            
+    	    /*** EXPERIMENTAL METHODS ASSOCIATED WITH THE QUERY DSL ***/
+    	    private def attributeSet (attrs:NamedAttribute*) :Set[String] = 
+    	        (Set[String]() /: (for (a <- attrs) yield (Set[String](a.name)))) (_ ++ _)
+
+    	    def apply (expr:Expression) = d.withAttributes (expr.toString)
+    	    def apply (attrs:NamedAttribute*) (expr:Expression) = 
+    	        d.withAttributes(expr.toString, attributeSet(attrs:_*))
+        }
     }
 }

@@ -32,12 +32,12 @@ package org.sublime.amazon.simpleDB.api {
         extends MapProxy[String,Set[String]]
 
 	/**
-     * A class which serves as a proxy to a Doman within simpleDB.  This class holds no data
+     * A class which serves as a proxy to a Domain within simpleDB.  This class holds no data
      * other than a reference to the domain name.  Calls to methods which access items from
      * within the domain will always result in network requests to SimpleDB.
      */
-	class Domain(val name:String) (implicit val concrete:Concrete) {
-	    import concrete._
+	class Domain(val name:String) (implicit val api:SimpleAPI) {
+	    import api._
 	    import StreamMaker._
 	    
 	    /**
@@ -181,15 +181,6 @@ package org.sublime.amazon.simpleDB.api {
 		    val start = QueryWithAttributesRequest.start(name, expression, attributes)
 		    streamOfStreams(responses(start, start.response), generate)        		
 	    }
-	    
-	    /*** EXPERIMENTAL METHODS ASSOCIATED WITH THE QUERY DSL ***/
-	    import Query.{Expression, NamedAttribute}
-	    private def attributeSet (attrs:NamedAttribute*) :Set[String] = 
-	        (Set[String]() /: (for (a <- attrs) yield (Set[String](a.name)))) (_ ++ _)
-	        
-	    def apply (expr:Expression) = withAttributes (expr.toString)
-	    def apply (attrs:NamedAttribute*) (expr:Expression) = 
-	        withAttributes(expr.toString, attributeSet(attrs:_*))
 	    		    			
 		override def toString = name			
 	}
@@ -199,9 +190,9 @@ package org.sublime.amazon.simpleDB.api {
      * attributes of the item itself.  Calls to methods which read or write attributes to and
      * from the item will result in network requests to SimpleDB.
      */
-	class Item(val domain:Domain, val name:String) (implicit val concrete:Concrete)
+	class Item(val domain:Domain, val name:String) (implicit val api:SimpleAPI)
 	{
-	    import concrete._
+	    import api._
 
         /**
          * Return a string assocating this item with it's domain in the form "domain.item"
@@ -335,20 +326,35 @@ package org.sublime.amazon.simpleDB.api {
 	    import StreamMaker._
 	    
 	    // make an implementation of the concrete objects available to implicit consumers.
-	    implicit val concrete:Concrete = this
+	    implicit val api:SimpleAPI = this
 	    
+	    /**
+	     * Perform a select operation associated with a known domain and return a stream of results.
+	     * A single request is made initially, and additional requests are made as needed when the
+	     * stream is read.
+	     */	     
+        def select (expression:String, domain:Domain) :Stream[ItemSnapshot] =
+            select [ItemSnapshot] (i => new ItemSnapshot(domain.item(i.name), i.attributes), 
+                expression)
+
 	    /**
 	     * Perform a select operation and return a stream of results.  The results are simple
 	     * maps of attributes names to sets of values.  A single request is made initially, and
 	     * additional requests are made as needed when the stream is read.
 	     */
-        def select (expression:String) 
-		    :Stream[ItemNameSnapshot] = {
-		        
-		    def convert (i:ItemWithAttributesResult#Item) = new ItemNameSnapshot(i.name, 
-		        i.attributes)
+        def select (expression:String) :Stream[ItemNameSnapshot] =
+            select [ItemNameSnapshot] (i => new ItemNameSnapshot(i.name, i.attributes), 
+                expression)
+	    
+	    /**
+	     * Perform a select operation and return a stream of results.  Convert the results using
+	     * the supplied function. A single request is made initially, and additional requests are 
+	     * made as needed when the stream is read.
+	     */
+ 	    private def select [T] (convert: (ItemWithAttributesResult#Item) => T, expression:String) 
+ 	        :Stream[T] = {
 		    
-		    def generate(res:SelectResponse) :Stream[ItemNameSnapshot] =
+		    def generate(res:SelectResponse) :Stream[T] =
 		        streamOfObjects(res.result.items.toList, convert)
 		        
 		    def responses(req:SelectRequest, res:SelectResponse) 
@@ -358,7 +364,7 @@ package org.sublime.amazon.simpleDB.api {
 		            case Some(request) => responses(request, request.response)			            
 		        })
 		        
-		    val start = SelectRequest.start(expression)
+    	    val start = SelectRequest.start("select "+expression)
 		    streamOfStreams(responses(start, start.response), generate)        		
 	    }
 	    		
